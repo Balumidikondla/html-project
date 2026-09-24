@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
         - name: html-project
-          image: balumidikondla/html_project:latest
+          image: balumidikondla/html_project:22
           ports:
             - containerPort: 80
