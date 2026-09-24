@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                echo 'Cloning GitHub Repo'
+
+                git branch: 'main',
+                    url: 'https://github.com/Balumidikondla/html-project.git'
+            }
+        }
+
+        stage('SonarQube Scan') {
+            steps {
+                echo 'Scanning project'
+
+                sh 'ls -ltr'
+
+                sh '''
+                    docker run --rm \
+                    -v "$WORKSPACE:/usr/src" \
+                    sonarsource/sonar-scanner-cli \
+                    -Dsonar.projectKey=html-project \
+                    -Dsonar.sources=/usr/src \
+                    -Dsonar.host.url=http://54.82.220.14:9000/ \
+                    -Dsonar.login=squ_5f58ef4fd4d3f97280938c92f31c6727e5801a11
+                '''
+            }
+        }
+
+        stage('Build Artifact') {
+            steps {
+                echo 'Building HTML artifact'
+
+                sh 'ls -ltr'
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                echo 'Building Docker image'
+
+                sh 'docker build -t balumidikondla/html_project:${BUILD_NUMBER} .'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'dockerhub', variable: 'dockerhub')]) {
+                        sh 'docker login -u balumidikondla -p ${dockerhub}'
+                    }
+
+                    sh 'docker push balumidikondla/html_project:${BUILD_NUMBER}'
+                    echo 'Pushed to Docker Hub'
+                }
+            }
+        }
+
+        stage('Update Deployment File') {
+            steps {
+                echo 'Updating deployment file'
+
+                withCredentials([string(credentialsId: 'githubtoken', variable: 'githubtoken')]) {
+                    sh '''
+                        git config user.email "balumidikondla@gmail.com"
+                        git config user.name "Bala"
+
+                        sed -i "s|html_project:.*|html_project:${BUILD_NUMBER}|g" k8s/deployment.yaml
+
+                        git add k8s/deployment.yaml
+                        git commit -m "Update deployment image to version ${BUILD_NUMBER}"
+                        git push https://${githubtoken}@github.com/Balumidikondla/html-project.git HEAD:main
+                    '''
+                }
+            }
+        }
+
+    }
+}
